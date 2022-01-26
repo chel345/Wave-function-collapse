@@ -1,0 +1,195 @@
+[gd_scene load_steps=2 format=2]
+
+[sub_resource type="GDScript" id=1]
+script/source = "extends Control
+
+var N_x = 3
+var N_y = 3
+
+var outX = 3
+var outY = 3
+var speed = 0
+var d = 10
+var c_x = 0
+var c_y = 0
+
+var process
+
+class Pattern:
+	var pattern_map = []
+	var pixels_left = []
+	var pixels_top = []
+	var pixels_right = []
+	var pixels_bottom = []
+	var x = 0
+	var y = 0
+
+func ready():
+	randomize()
+
+func getT(img):
+	if !img:
+		return ImageTexture.new()
+	var l = ImageTexture.new()
+	l.create_from_image(img)
+	l.flags = 2
+	return l
+
+func getCord(cord,bar):
+	if cord < 0:
+		return 0
+	if cord >= bar:
+		return bar
+	return cord
+
+func enumerationX(x,y,img):
+	var w = img.get_size().x
+	var h = img.get_size().y
+	var pixs = []
+	for i in range(x-1,x+N_x+1):
+		img.lock()
+		pixs.append(img.get_pixel(getCord(i,w-1),getCord(y,h-1)))
+	return pixs
+
+func enumerationY(x,y,img):
+	var w = img.get_size().x
+	var h = img.get_size().y
+	var pixs = []
+	for i in range(y-1,y+N_y+1):
+		img.lock()
+		pixs.append(img.get_pixel(getCord(x,w-1),getCord(i,h-1)))
+	return pixs
+
+func toHorizontal(ptrn):
+	var t = Pattern.new()
+	for i in range(0,len(ptrn.pattern_map)):
+		t.pattern_map.append([])
+		for j in range(0,len(ptrn.pattern_map[i])):
+			t.pattern_map[i].append(ptrn.pattern_map[i][abs(j-(len(ptrn.pattern_map[i])-1))])
+	var h = t.pixels_left
+	t.pixels_left = ptrn.pixels_right
+	t.pixels_right = h
+	t.pixels_top = ptrn.pixels_top
+	t.pixels_bottom = ptrn.pixels_bottom
+	return t
+
+func toVertical(ptrn):
+	var t = Pattern.new()
+	for i in range(0,len(ptrn.pattern_map)):
+		t.pattern_map.append(ptrn.pattern_map[abs(i-(len(ptrn.pattern_map)-1))])
+	t.pixels_right = ptrn.pixels_right
+	t.pixels_left = ptrn.pixels_left
+	var h = t.pixels_top
+	t.pixels_top = ptrn.pixels_bottom
+	t.pixels_bottom = h
+	return t
+
+func savePattern(x,y,inp,w,h):
+	var pattern = Pattern.new()
+	var p = []
+	for i in range(-floor(N_y/2),floor(N_y/2)+1):
+		p.append([])
+		for j in range(-floor(N_x/2),floor(N_x/2)+1):
+			inp.lock()
+			var clr = inp.get_pixel(getCord(x+j,w-1),getCord(y+i,h-1))
+			p[i+floor(N_y/2)].append(clr)
+	if x > int(floor(N_x/2)):
+		pattern.pixels_left = enumerationY(x-int(floor(N_x/2))-1,y-int(floor(N_y/2)),inp)
+	if x+int(floor(N_x/2)) != w-1:
+		pattern.pixels_right = enumerationY(x+int(floor(N_x/2))+1,y-int(floor(N_y/2)),inp)
+	if y > int(floor(N_y/2)):
+		pattern.pixels_top = enumerationX(x-int(floor(N_y/2)),y-int(floor(N_y/2))-1,inp)
+	if y+int(floor(N_y/2)) != h-1:
+		pattern.pixels_bottom = enumerationX(x-int(floor(N_y/2)),y+int(floor(N_y/2))+1,inp)
+	pattern.pattern_map = p
+	return pattern
+
+func generate(input):
+	var w = input.get_size().x
+	var h = input.get_size().y
+	var patterns = []
+	for i in range(int(floor(N_y/2)),w-int(floor(N_y/2)),1):
+		for j in range(int(floor(N_x/2)),h-int(floor(N_x/2)),1):
+			patterns.append(savePattern(j,i,input,w,h))
+	var patterns_d = []
+	for i in patterns:
+		patterns_d.append(toHorizontal(i))
+		patterns_d.append(toVertical(i))
+		patterns_d.append(toVertical(toHorizontal(i)))
+
+	for i in patterns_d:
+		patterns.append(i)
+
+func _on_FileDialog_file_selected(path):
+	var inp = Image.new()
+	inp.load(path)
+	$VBoxContainer/HBoxContainer/input.texture = getT(inp)
+	$VBoxContainer/HBoxContainer/input.expand = true
+	$VBoxContainer/HBoxContainer/input.stretch_mode = 5
+	$VBoxContainer/HBoxContainer/output.texture = getT(generate(inp))
+	$VBoxContainer/HBoxContainer/output.expand = true
+	$VBoxContainer/HBoxContainer/output.stretch_mode = 5
+
+func _on_Button_pressed():
+	$VBoxContainer/FileDialog.popup()
+"
+
+[node name="Control" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = SubResource( 1 )
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer"]
+margin_right = 1024.0
+margin_bottom = 298.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="input" type="TextureRect" parent="VBoxContainer/HBoxContainer"]
+margin_right = 510.0
+margin_bottom = 298.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="output" type="TextureRect" parent="VBoxContainer/HBoxContainer"]
+margin_left = 514.0
+margin_right = 1024.0
+margin_bottom = 298.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Button" type="Button" parent="VBoxContainer"]
+margin_top = 302.0
+margin_right = 1024.0
+margin_bottom = 600.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "load"
+
+[node name="FileDialog" type="FileDialog" parent="VBoxContainer"]
+margin_top = 402.0
+margin_right = 1024.0
+margin_bottom = 600.0
+rect_min_size = Vector2( 150, 52.5 )
+size_flags_horizontal = 3
+size_flags_vertical = 3
+window_title = "Открыть файл"
+mode = 0
+access = 2
+current_dir = "/Users/Богдан/Desktop/Wave function collapse/wave function collapse"
+current_path = "/Users/Богдан/Desktop/Wave function collapse/wave function collapse/"
+
+[connection signal="pressed" from="VBoxContainer/Button" to="." method="_on_Button_pressed"]
+[connection signal="file_selected" from="VBoxContainer/FileDialog" to="." method="_on_FileDialog_file_selected"]
