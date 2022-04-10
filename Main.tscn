@@ -3,135 +3,291 @@
 [sub_resource type="GDScript" id=1]
 script/source = "extends Control
 
-var N_x = 3
-var N_y = 3
+###
+var pattern_width = 3
+var pattern_height = 3
+var height = 27
+var width = 27
+###
 
-var outX = 3
-var outY = 3
-var speed = 0
-var d = 10
-var c_x = 0
-var c_y = 0
+var input:Image
+var output:Image
+var patterns:Array
 
-var process
+var Wp = floor(pattern_width/2)
+var Hp = floor(pattern_height/2)
+
+const empty = Color(0,0,0,0)
 
 class Pattern:
-	var pattern_map = []
+	var map = []
 	var pixels_left = []
-	var pixels_top = []
 	var pixels_right = []
+	var pixels_top = []
 	var pixels_bottom = []
-	var x = 0
-	var y = 0
 
-func ready():
-	randomize()
-
-func getT(img):
-	if !img:
-		return ImageTexture.new()
-	var l = ImageTexture.new()
-	l.create_from_image(img)
-	l.flags = 2
-	return l
-
-func getCord(cord,bar):
-	if cord < 0:
-		return 0
-	if cord >= bar:
-		return bar
-	return cord
-
-func enumerationX(x,y,img):
-	var w = img.get_size().x
-	var h = img.get_size().y
-	var pixs = []
-	for i in range(x-1,x+N_x+1):
-		img.lock()
-		pixs.append(img.get_pixel(getCord(i,w-1),getCord(y,h-1)))
-	return pixs
-
-func enumerationY(x,y,img):
-	var w = img.get_size().x
-	var h = img.get_size().y
-	var pixs = []
-	for i in range(y-1,y+N_y+1):
-		img.lock()
-		pixs.append(img.get_pixel(getCord(x,w-1),getCord(i,h-1)))
-	return pixs
-
-func toHorizontal(ptrn):
-	var t = Pattern.new()
-	for i in range(0,len(ptrn.pattern_map)):
-		t.pattern_map.append([])
-		for j in range(0,len(ptrn.pattern_map[i])):
-			t.pattern_map[i].append(ptrn.pattern_map[i][abs(j-(len(ptrn.pattern_map[i])-1))])
-	var h = t.pixels_left
-	t.pixels_left = ptrn.pixels_right
-	t.pixels_right = h
-	t.pixels_top = ptrn.pixels_top
-	t.pixels_bottom = ptrn.pixels_bottom
-	return t
-
-func toVertical(ptrn):
-	var t = Pattern.new()
-	for i in range(0,len(ptrn.pattern_map)):
-		t.pattern_map.append(ptrn.pattern_map[abs(i-(len(ptrn.pattern_map)-1))])
-	t.pixels_right = ptrn.pixels_right
-	t.pixels_left = ptrn.pixels_left
-	var h = t.pixels_top
-	t.pixels_top = ptrn.pixels_bottom
-	t.pixels_bottom = h
-	return t
-
-func savePattern(x,y,inp,w,h):
+func savePattern(x,y):
 	var pattern = Pattern.new()
-	var p = []
-	for i in range(-floor(N_y/2),floor(N_y/2)+1):
-		p.append([])
-		for j in range(-floor(N_x/2),floor(N_x/2)+1):
-			inp.lock()
-			var clr = inp.get_pixel(getCord(x+j,w-1),getCord(y+i,h-1))
-			p[i+floor(N_y/2)].append(clr)
-	if x > int(floor(N_x/2)):
-		pattern.pixels_left = enumerationY(x-int(floor(N_x/2))-1,y-int(floor(N_y/2)),inp)
-	if x+int(floor(N_x/2)) != w-1:
-		pattern.pixels_right = enumerationY(x+int(floor(N_x/2))+1,y-int(floor(N_y/2)),inp)
-	if y > int(floor(N_y/2)):
-		pattern.pixels_top = enumerationX(x-int(floor(N_y/2)),y-int(floor(N_y/2))-1,inp)
-	if y+int(floor(N_y/2)) != h-1:
-		pattern.pixels_bottom = enumerationX(x-int(floor(N_y/2)),y+int(floor(N_y/2))+1,inp)
-	pattern.pattern_map = p
-	return pattern
+	for yp in range(y-Hp,y+Hp+1):
+		pattern.map.append([])
+		for xp in range(x-Wp,x+Wp+1):
+			pattern.map[-1].append(getPixel(xp,yp))
+	for xp in range(x-Wp,x+Wp+1):
+		pattern.pixels_top.append(getPixel(xp,y-Hp-1))
+		pattern.pixels_bottom.append(getPixel(xp,y+Hp+1))
+	for yp in range(y-Hp,y+Hp+1):
+		pattern.pixels_left.append(getPixel(x-Wp-1,yp))
+		pattern.pixels_right.append(getPixel(x+Wp+1,yp))
+	patterns.append(pattern)
+	#print(str(pattern.map)+\" LLL \")
+#	var pattern90 = Pattern.new()
+#	for yp in range(0,pattern_height):
+#		pattern90.map.append([])
+#		for xp in range(0,pattern_width):
+#			pattern90.map[-1].append(pattern.map[xp][pattern_width-yp])
+#	patterns.append(pattern90)
 
-func generate(input):
-	var w = input.get_size().x
-	var h = input.get_size().y
-	var patterns = []
-	for i in range(int(floor(N_y/2)),w-int(floor(N_y/2)),1):
-		for j in range(int(floor(N_x/2)),h-int(floor(N_x/2)),1):
-			patterns.append(savePattern(j,i,input,w,h))
-	var patterns_d = []
+func spawnPattern(x,y,pattern):
+	for yp in range(-Hp,Hp+1):
+		for xp in range(-Wp,Wp+1):
+			setPixel(x+xp,y+yp,pattern.map[yp+Hp][xp+Wp])
+
+func getPixel(x,y,inp = input):
+	if x < 0:
+		return getPixel(0,y)
+	if x >= inp.get_width():
+		return getPixel(inp.get_width()-1,y)
+	if y < 0:
+		return getPixel(x,0)
+	if y >= inp.get_height():
+		return getPixel(x,inp.get_height()-1)
+	inp.lock()
+	var color = inp.get_pixel(x,y)
+	inp.unlock()
+	return color
+
+func setPixel(x,y,value):
+	if x < 0:
+		return setPixel(0,y,value)
+	if x >= output.get_width():
+		return setPixel(output.get_width()-1,y,value)
+	if y < 0:
+		return setPixel(x,0,value)
+	if y >= output.get_height():
+		return setPixel(x,output.get_height()-1,value)
+	output.lock()
+	output.set_pixel(x,y,value)
+	output.unlock()
+
+func enumeration(array1,array2):
+	if array1 == array2:
+		return true
+	return false
+
+func canSpawnPatternOn(x,y,pattern):
+	for xp in range(x-Wp,+Wp+1):
+		for yp in range(y-Hp,y+Hp+1):
+			if getPixel(xp,yp,output) != empty:
+				return false
+	var conditionTop = []
+	var conditionBottom = []
+	var conditionRight = []
+	var conditionLeft = []
+	for xp in range(x-Wp,x+Wp+1):
+		conditionTop.append(getPixel(xp,y-Hp-1,output))
+		conditionBottom.append(getPixel(xp,y+Hp+1,output))
+	for yp in range(y-Hp,y+Hp+1):
+		conditionLeft.append(getPixel(x-Wp-1,yp,output))
+		conditionRight.append(getPixel(x+Wp+1,yp,output))
+	for i in conditionTop:
+		if i != empty:
+			conditionTop = enumeration(conditionTop,pattern.pixels_top)
+			break
+		conditionTop = true
+	for i in conditionBottom:
+		if i != empty:
+			conditionBottom = enumeration(conditionBottom,pattern.pixels_bottom)
+			break
+		conditionBottom = true
+	for i in conditionLeft:
+		if i != empty:
+			conditionLeft = enumeration(conditionLeft,pattern.pixels_left)
+			break
+		conditionLeft = true
+	for i in conditionRight:
+		if i != empty:
+			conditionRight = enumeration(conditionRight,pattern.pixels_right)
+			break
+		conditionRight = true
+	return conditionBottom and conditionLeft and conditionRight and conditionTop
+
+func getPattern(x,y):
 	for i in patterns:
-		patterns_d.append(toHorizontal(i))
-		patterns_d.append(toVertical(i))
-		patterns_d.append(toVertical(toHorizontal(i)))
+		if canSpawnPatternOn(x,y,i):
+			return i
+	return patterns[0]
 
-	for i in patterns_d:
-		patterns.append(i)
+func getCoordinates():
+	pass
+
+func cycle(n,now):
+	for y in range(0,output.get_height()-1):
+		for x in range(0,output.get_width()-1):
+			if x%3 == 0 and y%3 == 0:
+				var ptrn = getPattern(x,y)
+				if ptrn is Pattern:
+					spawnPattern(x,y,ptrn)
+
+func generate():
+	for y in range(0,input.get_height()):
+		for x in range(0,input.get_width()):
+			#if y%pattern_height == 0 or x%pattern_width == 0:
+			savePattern(x,y)
+	var n = floor(input.get_width()/pattern_width)
+	cycle(n,1)
 
 func _on_FileDialog_file_selected(path):
-	var inp = Image.new()
-	inp.load(path)
-	$VBoxContainer/HBoxContainer/input.texture = getT(inp)
+	patterns = []
+	output = Image.new()
+	output.create(height,width,true,Image.FORMAT_RGBA4444)
+	input = Image.new()
+	input.load(path)
+	var input_img = ImageTexture.new()
+	input_img.create_from_image(input)
+	input_img.flags = 2
+	$VBoxContainer/HBoxContainer/input.texture = input_img
 	$VBoxContainer/HBoxContainer/input.expand = true
 	$VBoxContainer/HBoxContainer/input.stretch_mode = 5
-	$VBoxContainer/HBoxContainer/output.texture = getT(generate(inp))
+	var output_img = ImageTexture.new()
+	generate()
+	output_img.create_from_image(output)
+	output_img.flags = 2
+	$VBoxContainer/HBoxContainer/output.texture = output_img
 	$VBoxContainer/HBoxContainer/output.expand = true
 	$VBoxContainer/HBoxContainer/output.stretch_mode = 5
 
 func _on_Button_pressed():
 	$VBoxContainer/FileDialog.popup()
+
+	
+#
+#var N_x = 3
+#var N_y = 3
+#
+#var outX = 3
+#var outY = 3
+#var speed = 1
+#var d = 10
+#var c_x = 0
+#var c_y = 0
+#
+#var process
+#
+#class Pattern:
+#	var pattern_map = []
+#	var pixels_left = []
+#	var pixels_top = []
+#	var pixels_right = []
+#	var pixels_bottom = []
+#	var x = 0
+#	var y = 0
+#
+#func ready():
+#	randomize()
+#
+#func getT(img):
+#	if !img:
+#		return ImageTexture.new()
+#	var l = ImageTexture.new()
+#	l.create_from_image(img)
+#	l.flags = 2
+#	return l
+#
+#func getCord(cord,bar):
+#	if cord < 0:
+#		return 0
+#	if cord >= bar:
+#		return bar
+#	return cord
+#
+#func enumerationX(x,y,img):
+#	var w = img.get_size().x
+#	var h = img.get_size().y
+#	var pixs = []
+#	for i in range(x-1,x+N_x+1):
+#		img.lock()
+#		pixs.append(img.get_pixel(getCord(i,w-1),getCord(y,h-1)))
+#	return pixs
+#
+#func enumerationY(x,y,img):
+#	var w = img.get_size().x
+#	var h = img.get_size().y
+#	var pixs = []
+#	for i in range(y-1,y+N_y+1):
+#		img.lock()
+#		pixs.append(img.get_pixel(getCord(x,w-1),getCord(i,h-1)))
+#	return pixs
+#
+#func toHorizontal(ptrn):
+#	var t = Pattern.new()
+#	for i in range(0,len(ptrn.pattern_map)):
+#		t.pattern_map.append([])
+#		for j in range(0,len(ptrn.pattern_map[i])):
+#			t.pattern_map[i].append(ptrn.pattern_map[i][abs(j-(len(ptrn.pattern_map[i])-1))])
+#	var h = t.pixels_left
+#	t.pixels_left = ptrn.pixels_right
+#	t.pixels_right = h
+#	t.pixels_top = ptrn.pixels_top
+#	t.pixels_bottom = ptrn.pixels_bottom
+#	return t
+#
+#func toVertical(ptrn):
+#	var t = Pattern.new()
+#	for i in range(0,len(ptrn.pattern_map)):
+#		t.pattern_map.append(ptrn.pattern_map[abs(i-(len(ptrn.pattern_map)-1))])
+#	t.pixels_right = ptrn.pixels_right
+#	t.pixels_left = ptrn.pixels_left
+#	var h = t.pixels_top
+#	t.pixels_top = ptrn.pixels_bottom
+#	t.pixels_bottom = h
+#	return t
+#
+#func savePattern(x,y,inp,w,h):
+#	var pattern = Pattern.new()
+#	var p = []
+#	for i in range(-floor(N_y/2),floor(N_y/2)+1):
+#		p.append([])
+#		for j in range(-floor(N_x/2),floor(N_x/2)+1):
+#			inp.lock()
+#			var clr = inp.get_pixel(getCord(x+j,w-1),getCord(y+i,h-1))
+#			p[i+floor(N_y/2)].append(clr)
+#	if x > int(floor(N_x/2)):
+#		pattern.pixels_left = enumerationY(x-int(floor(N_x/2))-1,y-int(floor(N_y/2)),inp)
+#	if x+int(floor(N_x/2)) != w-1:
+#		pattern.pixels_right = enumerationY(x+int(floor(N_x/2))+1,y-int(floor(N_y/2)),inp)
+#	if y > int(floor(N_y/2)):
+#		pattern.pixels_top = enumerationX(x-int(floor(N_y/2)),y-int(floor(N_y/2))-1,inp)
+#	if y+int(floor(N_y/2)) != h-1:
+#		pattern.pixels_bottom = enumerationX(x-int(floor(N_y/2)),y+int(floor(N_y/2))+1,inp)
+#	pattern.pattern_map = p
+#	return pattern
+#
+#func generate(input):
+#	var w = input.get_size().x
+#	var h = input.get_size().y
+#	var patterns = []
+#	for i in range(int(floor(N_y/2)),w-int(floor(N_y/2)),1):
+#		for j in range(int(floor(N_x/2)),h-int(floor(N_x/2)),1):
+#			patterns.append(savePattern(j,i,input,w,h))
+#	var patterns_d = []
+#	for i in patterns:
+#		patterns_d.append(toHorizontal(i))
+#		patterns_d.append(toVertical(i))
+#		patterns_d.append(toVertical(toHorizontal(i)))
+#
+#	for i in patterns_d:
+#		patterns.append(i)
+#
 "
 
 [node name="Control" type="Control"]
