@@ -13,11 +13,12 @@ var width = 27
 var input:Image
 var output:Image
 var patterns:Array
+var output_img = ImageTexture.new()
 
-var Wp = floor(pattern_width/2)
-var Hp = floor(pattern_height/2)
+var Wp = int(floor(pattern_width/2))
+var Hp = int(floor(pattern_height/2))
 
-const empty = Color(0,0,0,0)
+const empty = Color(0,0,0,1)
 
 class Pattern:
 	var map = []
@@ -44,8 +45,33 @@ func savePattern(x,y):
 #	for yp in range(0,pattern_height):
 #		pattern90.map.append([])
 #		for xp in range(0,pattern_width):
-#			pattern90.map[-1].append(pattern.map[xp][pattern_width-yp])
+#			pattern90.map[-1].append(pattern.map[xp][pattern_width-yp-1])
+#	pattern90.pixels_bottom = pattern.pixels_right
+#	pattern90.pixels_top = pattern.pixels_left
+#	pattern90.pixels_left = pattern.pixels_top
+#	pattern90.pixels_right = pattern.pixels_bottom
 #	patterns.append(pattern90)
+#	var pattern180 = Pattern.new()
+#	for yp in range(0,pattern_height):
+#		pattern180.map.append([])
+#		for xp in range(0,pattern_width):
+#			pattern180.map[-1].append(pattern.map[xp][pattern_width-yp-1])
+#	pattern180.pixels_bottom = pattern90.pixels_right
+#	pattern180.pixels_top = pattern90.pixels_left
+#	pattern180.pixels_left = pattern90.pixels_top
+#	pattern180.pixels_right = pattern90.pixels_bottom
+#	patterns.append(pattern180)
+#	var pattern270 = Pattern.new()
+#	for yp in range(0,pattern_height):
+#		pattern270.map.append([])
+#		for xp in range(0,pattern_width):
+#			pattern270.map[-1].append(pattern.map[xp][pattern_width-yp-1])
+#	pattern270.pixels_bottom = pattern180.pixels_right
+#	pattern270.pixels_top = pattern180.pixels_left
+#	pattern270.pixels_left = pattern180.pixels_top
+#	pattern270.pixels_right = pattern180.pixels_bottom
+#	patterns.append(pattern270)
+
 
 func spawnPattern(x,y,pattern):
 	for yp in range(-Hp,Hp+1):
@@ -54,13 +80,13 @@ func spawnPattern(x,y,pattern):
 
 func getPixel(x,y,inp = input):
 	if x < 0:
-		return getPixel(0,y)
+		return getPixel(0,y,inp)
 	if x >= inp.get_width():
-		return getPixel(inp.get_width()-1,y)
+		return getPixel(inp.get_width()-1,y,inp)
 	if y < 0:
-		return getPixel(x,0)
+		return getPixel(x,0,inp)
 	if y >= inp.get_height():
-		return getPixel(x,inp.get_height()-1)
+		return getPixel(x,inp.get_height()-1,inp)
 	inp.lock()
 	var color = inp.get_pixel(x,y)
 	inp.unlock()
@@ -79,16 +105,27 @@ func setPixel(x,y,value):
 	output.set_pixel(x,y,value)
 	output.unlock()
 
-func enumeration(array1,array2):
-	if array1 == array2:
-		return true
-	return false
 
-func canSpawnPatternOn(x,y,pattern):
-	for xp in range(x-Wp,+Wp+1):
+func enumeration(array1,array2):
+	for i in range(0,len(array1)):
+		if array1[i] != array2[i] and array1[i] != empty:#arr1[len(array1)-i-1] != arr2[i] and arr1[len(array1)-i-1] != empty:
+#			print(str(array1)+\" with \"+str(array2))
+			return false
+	return true
+
+func canSpawnPatternOn(x,y,pattern,conditionBottom,conditionLeft,conditionRight,conditionTop):
+	for xp in range(x-Wp,x+Wp+1):
 		for yp in range(y-Hp,y+Hp+1):
 			if getPixel(xp,yp,output) != empty:
 				return false
+	var conditionTop_ = enumeration(conditionTop,pattern.pixels_top)
+	var conditionBottom_ = enumeration(conditionBottom,pattern.pixels_bottom)
+	var conditionLeft_ = enumeration(conditionLeft,pattern.pixels_left)
+	var conditionRight_ = enumeration(conditionRight,pattern.pixels_right)
+	return conditionLeft_ and conditionRight_ and conditionBottom_ and conditionTop_
+
+func getPattern(x,y):
+	var canBeThis = []
 	var conditionTop = []
 	var conditionBottom = []
 	var conditionRight = []
@@ -99,57 +136,78 @@ func canSpawnPatternOn(x,y,pattern):
 	for yp in range(y-Hp,y+Hp+1):
 		conditionLeft.append(getPixel(x-Wp-1,yp,output))
 		conditionRight.append(getPixel(x+Wp+1,yp,output))
-	for i in conditionTop:
-		if i != empty:
-			conditionTop = enumeration(conditionTop,pattern.pixels_top)
-			break
-		conditionTop = true
-	for i in conditionBottom:
-		if i != empty:
-			conditionBottom = enumeration(conditionBottom,pattern.pixels_bottom)
-			break
-		conditionBottom = true
-	for i in conditionLeft:
-		if i != empty:
-			conditionLeft = enumeration(conditionLeft,pattern.pixels_left)
-			break
-		conditionLeft = true
-	for i in conditionRight:
-		if i != empty:
-			conditionRight = enumeration(conditionRight,pattern.pixels_right)
-			break
-		conditionRight = true
-	return conditionBottom and conditionLeft and conditionRight and conditionTop
-
-func getPattern(x,y):
 	for i in patterns:
-		if canSpawnPatternOn(x,y,i):
-			return i
-	return patterns[0]
+		if canSpawnPatternOn(x,y,i,conditionBottom,conditionLeft,conditionRight,conditionTop):
+			canBeThis.append(i)
+	if len(canBeThis) > 0:
+#		print(conditionBottom)
+#		print(conditionLeft)
+#		print(conditionRight)
+#		print(conditionTop)
+		print(len(canBeThis))
+		return canBeThis[rand_range(0,len(canBeThis))]
+	print(\"LL\")
+	return getPattern(x+1,y)
 
-func getCoordinates():
-	pass
+func cycle(nums,n,x,y):
+	if nums == n:
+		return
+	var ptrn = getPattern(x,y)
+	spawnPattern(x,y,ptrn)
+	var x_next = x + Wp*2 + 1
+	var y_next = y
+	if x_next > output.get_width():
+		y_next = y + Hp*2 + 1
+		x_next = 1
+	output_img.create_from_image(output)
+	output_img.flags = 2
+	$VBoxContainer/HBoxContainer/output.texture = output_img
+	yield(get_tree().create_timer(0), \"timeout\")
+	return cycle(nums,n+1,x_next,y_next)
+	
+#	for xP in range(x-n,x+n+1):
+#		var yP = int(ceil(sqrt(n*n-((xP-x)*(xP-x))))) #+int((1+(-1)^(int(xP)+1))*0.5
+#		if xP%3 == 0 and (yP+y)%3 == 0:
+##			setPixel(xP,yP+y,Color(1,0,0,1))
+##			setPixel(xP,-yP+y,Color(1,0,0,1))
+#			var ptrn = getPattern(xP+1,yP+y)
+#			spawnPattern(xP+1,yP+y,ptrn)
+#			ptrn = getPattern(xP+1,y-yP)
+#			spawnPattern(xP+1,y-yP,ptrn)
+#	yield(get_tree().create_timer(0.1), \"timeout\")
+#	output_img.create_from_image(output)
+#	output_img.flags = 2
+#	$VBoxContainer/HBoxContainer/output.texture = output_img
+#	return cycle(nums,n+1,x,y)
 
-func cycle(n,now):
-	for y in range(0,output.get_height()-1):
-		for x in range(0,output.get_width()-1):
-			if x%3 == 0 and y%3 == 0:
-				var ptrn = getPattern(x,y)
-				if ptrn is Pattern:
-					spawnPattern(x,y,ptrn)
 
 func generate():
 	for y in range(0,input.get_height()):
 		for x in range(0,input.get_width()):
 			#if y%pattern_height == 0 or x%pattern_width == 0:
 			savePattern(x,y)
-	var n = floor(input.get_width()/pattern_width)
-	cycle(n,1)
+	print(len(patterns))
+	var n = (output.get_size()[0]*output.get_size()[1])/(pattern_height*pattern_width)+1 #floor(input.get_width()/pattern_width)
+	#cycle(n,1,output.get_width()/2,output.get_height()/2)
+	cycle(n,1,1,1)
+
+#	var x = 10
+#	var y = 10
+#	var pattern = patterns[0]
+#	spawnPattern(x,y,pattern)
+#	for xp in range(-1,2):
+#		setPixel(x+xp,y-Hp-1,pattern.pixels_top[xp+1])
+#		setPixel(x+xp,y+Hp+1,pattern.pixels_bottom[xp+1])
+#	for yp in range(-1,2):
+#		setPixel(x-Wp-1,y+yp,pattern.pixels_left[yp+1])
+#		setPixel(x+Wp+1,y+yp,pattern.pixels_right[yp+1])
 
 func _on_FileDialog_file_selected(path):
 	patterns = []
+	$VBoxContainer/HBoxContainer/input.texture = null
+	$VBoxContainer/HBoxContainer/output.texture = null
 	output = Image.new()
-	output.create(height,width,true,Image.FORMAT_RGBA4444)
+	output.create(height,width,true,Image.FORMAT_RGB8)
 	input = Image.new()
 	input.load(path)
 	var input_img = ImageTexture.new()
@@ -158,7 +216,6 @@ func _on_FileDialog_file_selected(path):
 	$VBoxContainer/HBoxContainer/input.texture = input_img
 	$VBoxContainer/HBoxContainer/input.expand = true
 	$VBoxContainer/HBoxContainer/input.stretch_mode = 5
-	var output_img = ImageTexture.new()
 	generate()
 	output_img.create_from_image(output)
 	output_img.flags = 2
@@ -169,6 +226,8 @@ func _on_FileDialog_file_selected(path):
 func _on_Button_pressed():
 	$VBoxContainer/FileDialog.popup()
 
+func _ready():
+	randomize()
 	
 #
 #var N_x = 3
